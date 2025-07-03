@@ -102,7 +102,7 @@ export default function Dashboard() {
 
         try {
             const res = await axios.post(
-                "/rooms",   // <- changed here, removed '/create'
+                "/api/rooms",   // changed from '/rooms' to '/api/rooms'
                 { name: newRoomName },
                 {
                     headers: {
