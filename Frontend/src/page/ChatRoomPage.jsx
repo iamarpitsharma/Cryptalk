@@ -179,19 +179,6 @@ export default function ChatRoomPage() {
         }
       });
 
-      // Listen for join_request (for current members)
-      socketRef.current.on("join_request", ({ roomId: reqRoomId, requesterId, requesterName }) => {
-        // Only show prompt if current user is a member and not the requester
-        const isMember = roomMembers.some(m => (m.user?._id || m.user) === user._id);
-        if (isMember && requesterId !== user._id) {
-          if (window.confirm(`${requesterName} wants to join. Accept?`)) {
-            socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: true });
-          } else {
-            socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: false });
-          }
-        }
-      });
-
       // Listen for new incoming messages (only once)
       socketRef.current.off("new_message"); // Remove any previous listener
       socketRef.current.on("new_message", (message) => {
@@ -282,6 +269,25 @@ export default function ChatRoomPage() {
     });
     // No need to update state here, socket event will handle it
   };
+
+  // Add this after the main useEffect (after socketRef.current is set up)
+  useEffect(() => {
+    if (!socketRef.current) return;
+    const handler = ({ roomId: reqRoomId, requesterId, requesterName }) => {
+      const isMember = roomMembers.some(m => (m.user?._id || m.user) === user._id);
+      if (isMember && requesterId !== user._id) {
+        if (window.confirm(`${requesterName} wants to join. Accept?`)) {
+          socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: true });
+        } else {
+          socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: false });
+        }
+      }
+    };
+    socketRef.current.on("join_request", handler);
+    return () => {
+      socketRef.current.off("join_request", handler);
+    };
+  }, [roomMembers, user]);
 
   if (!user) return null;
   if (loading)
