@@ -23,6 +23,9 @@ const io = socketIo(server, {
   },
 })
 
+// ✅ Trust reverse proxy like Render
+app.set("trust proxy", 1);  // Fix for express-rate-limit + proxies
+
 // Security middleware
 app.use(helmet())
 app.use(
