@@ -95,6 +95,7 @@ export default function ChatRoomPage() {
   const [selfDestructTime, setSelfDestructTime] = useState(0);
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
+  const [roomMembers, setRoomMembers] = useState([]);
 
   useEffect(() => {
     const token = localStorage.getItem("cryptalk_token");
@@ -128,11 +129,14 @@ export default function ChatRoomPage() {
     };
 
     joinRoom().then(() => {
-      // Fetch room details to get the real room name from backend
+      // Fetch room details to get the real room name and members from backend
       axios
         .get(`/api/rooms/${roomId}`,
           { headers: { Authorization: `Bearer ${token}` } })
-        .then((res) => setRoomName(res.data.name))
+        .then((res) => {
+          setRoomName(res.data.name);
+          setRoomMembers(res.data.members || []);
+        })
         .catch((err) => {
           console.error("Failed to fetch room info", err);
           setRoomName("Unknown Room");
@@ -177,10 +181,14 @@ export default function ChatRoomPage() {
 
       // Listen for join_request (for current members)
       socketRef.current.on("join_request", ({ roomId: reqRoomId, requesterId, requesterName }) => {
-        if (window.confirm(`${requesterName} wants to join. Accept?`)) {
-          socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: true });
-        } else {
-          socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: false });
+        // Only show prompt if current user is a member and not the requester
+        const isMember = roomMembers.some(m => (m.user?._id || m.user) === user._id);
+        if (isMember && requesterId !== user._id) {
+          if (window.confirm(`${requesterName} wants to join. Accept?`)) {
+            socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: true });
+          } else {
+            socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: false });
+          }
         }
       });
 
