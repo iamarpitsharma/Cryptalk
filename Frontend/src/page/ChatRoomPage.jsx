@@ -109,103 +109,81 @@ export default function ChatRoomPage() {
     setUser(JSON.parse(userData));
     setLoading(false);
 
-    // --- Ensure user is a member of the room before connecting socket ---
-    const joinRoom = async () => {
-      try {
-        await axios.post(`/api/rooms/${roomId}/join`, {}, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-      } catch (err) {
-        // Only log if it's not 'Already a member of this room'
-        if (
-          !err.response ||
-          !err.response.data ||
-          err.response.data.message !== "Already a member of this room"
-        ) {
-          console.error("Failed to join room", err);
-        }
-        // Otherwise, ignore the error
+    // Fetch room details to get the real room name and members from backend
+    axios
+      .get(`/api/rooms/${roomId}`,
+        { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        setRoomName(res.data.name);
+        setRoomMembers(res.data.members || []);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch room info", err);
+        setRoomName("Unknown Room");
+      });
+
+    // Initialize Socket.IO client with token auth
+    socketRef.current = io(SOCKET_SERVER_URL, {
+      auth: { token },
+    });
+
+    socketRef.current.on("connect", () => {
+      console.log("Socket connected, emitting request_join_room", roomId);
+      socketRef.current.emit("request_join_room", roomId);
+    });
+
+    socketRef.current.on("connect_error", (err) => {
+      console.error("Socket connect error:", err.message);
+      if (err.message === "Authentication error") {
+        navigate("/auth/login");
       }
-    };
+    });
 
-    joinRoom().then(() => {
-      // Fetch room details to get the real room name and members from backend
-      axios
-        .get(`/api/rooms/${roomId}`,
-          { headers: { Authorization: `Bearer ${token}` } })
-        .then((res) => {
-          setRoomName(res.data.name);
-          setRoomMembers(res.data.members || []);
-        })
-        .catch((err) => {
-          console.error("Failed to fetch room info", err);
-          setRoomName("Unknown Room");
-        });
+    // Remove previous listeners before adding new ones to prevent duplicates
+    socketRef.current.off("joined_room");
+    socketRef.current.off("new_message");
+    socketRef.current.off("message_destroyed");
 
-      // Initialize Socket.IO client with token auth
-      socketRef.current = io(SOCKET_SERVER_URL, {
-        auth: { token },
-      });
+    // Listen for join_result (for the requester)
+    socketRef.current.on("join_result", ({ accepted, message }) => {
+      alert(message); // Show "Permission accepted/denied"
+      if (accepted) {
+        // Proceed to fetch messages, etc.
+        axios.get(`/api/rooms/${roomId}/messages`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }).then((res) => setMessages(res.data.messages))
+          .catch((error) => console.error("Failed to fetch messages:", error));
+      } else {
+        // Optionally redirect or block UI
+        navigate("/dashboard");
+      }
+    });
 
-      socketRef.current.on("connect", () => {
-        console.log("Socket connected, emitting request_join_room", roomId);
-        socketRef.current.emit("request_join_room", roomId);
-      });
-
-      socketRef.current.on("connect_error", (err) => {
-        console.error("Socket connect error:", err.message);
-        if (err.message === "Authentication error") {
-          navigate("/auth/login");
-        }
-      });
-
-      // Remove previous listeners before adding new ones to prevent duplicates
-      socketRef.current.off("joined_room");
-      socketRef.current.off("new_message");
-      socketRef.current.off("message_destroyed");
-
-      // Listen for join_result (for the requester)
-      socketRef.current.on("join_result", ({ accepted, message }) => {
-        alert(message); // Show "Permission accepted/denied"
-        if (accepted) {
-          // Proceed to fetch messages, etc.
-          axios.get(`/api/rooms/${roomId}/messages`, {
-            headers: { Authorization: `Bearer ${token}` },
-          }).then((res) => setMessages(res.data.messages))
-            .catch((error) => console.error("Failed to fetch messages:", error));
-        } else {
-          // Optionally redirect or block UI
-          navigate("/dashboard");
-        }
-      });
-
-      // Listen for new incoming messages (only once)
-      socketRef.current.off("new_message"); // Remove any previous listener
-      socketRef.current.on("new_message", (message) => {
-        console.log("[Socket] new_message received:", message);
-        setMessages((prev) => {
-          if (prev.some((msg) => msg._id === message._id)) return prev;
-          return [...prev, message];
-        });
-      });
-
-      // Listen for message destruction to remove it from UI
-      socketRef.current.on("message_destroyed", ({ messageId }) => {
-        setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
-      });
-
-      socketRef.current.on("message_deleted", ({ messageId }) => {
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg._id === messageId
-              ? { ...msg, isDeleted: true, content: "[Message deleted]" }
-              : msg
-          )
-        );
+    // Listen for new incoming messages (only once)
+    socketRef.current.off("new_message"); // Remove any previous listener
+    socketRef.current.on("new_message", (message) => {
+      console.log("[Socket] new_message received:", message);
+      setMessages((prev) => {
+        if (prev.some((msg) => msg._id === message._id)) return prev;
+        return [...prev, message];
       });
     });
 
-    
+    // Listen for message destruction to remove it from UI
+    socketRef.current.on("message_destroyed", ({ messageId }) => {
+      setMessages((prev) => prev.filter((msg) => msg._id !== messageId));
+    });
+
+    socketRef.current.on("message_deleted", ({ messageId }) => {
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === messageId
+            ? { ...msg, isDeleted: true, content: "[Message deleted]" }
+            : msg
+        )
+      );
+    });
+
     return () => {
       if (socketRef.current) {
         socketRef.current.disconnect();
