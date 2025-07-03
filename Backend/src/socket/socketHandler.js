@@ -240,13 +240,16 @@ const socketHandler = (io) => {
     });
 
     socket.on("join_response", async ({ roomId, requesterId, accepted }) => {
+      const room = await Room.findById(roomId);
       if (!pendingJoinRequests[roomId] || !pendingJoinRequests[roomId][requesterId]) return;
       const requesterSocketId = pendingJoinRequests[roomId][requesterId];
       const requesterSocket = io.sockets.sockets.get(requesterSocketId);
 
+      // Only allow the creator to approve/deny
+      if (!room || room.creator.toString() !== socket.userId) return;
+
       if (accepted) {
         // Add user to room in DB
-        const room = await Room.findById(roomId);
         if (room && !room.members.some(m => m.user.toString() === requesterId)) {
           room.members.push({ user: requesterId, role: "member" });
           await room.save();

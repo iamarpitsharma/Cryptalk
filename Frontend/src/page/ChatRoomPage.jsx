@@ -96,6 +96,7 @@ export default function ChatRoomPage() {
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
   const [roomMembers, setRoomMembers] = useState([]);
+  const [roomCreator, setRoomCreator] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem("cryptalk_token");
@@ -116,6 +117,7 @@ export default function ChatRoomPage() {
       .then((res) => {
         setRoomName(res.data.name);
         setRoomMembers(res.data.members || []);
+        setRoomCreator(res.data.creator?._id || res.data.creator);
       })
       .catch((err) => {
         console.error("Failed to fetch room info", err);
@@ -252,8 +254,9 @@ export default function ChatRoomPage() {
   useEffect(() => {
     if (!socketRef.current) return;
     const handler = ({ roomId: reqRoomId, requesterId, requesterName }) => {
-      const isMember = roomMembers.some(m => (m.user?._id || m.user) === user._id);
-      if (isMember && requesterId !== user._id) {
+      // Only the creator can approve join requests
+      const isCreator = user && roomCreator && user._id === roomCreator;
+      if (isCreator && requesterId !== user._id) {
         if (window.confirm(`${requesterName} wants to join. Accept?`)) {
           socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: true });
         } else {
@@ -265,7 +268,7 @@ export default function ChatRoomPage() {
     return () => {
       socketRef.current.off("join_request", handler);
     };
-  }, [roomMembers, user]);
+  }, [roomMembers, user, roomCreator]);
 
   if (!user) return null;
   if (loading)
