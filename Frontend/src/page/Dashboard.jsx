@@ -30,7 +30,7 @@ export default function Dashboard() {
         const fetchRooms = async () => {
             try {
                 setLoading(true);
-                const res = await axios.get("/rooms", {
+                const res = await axios.get("/api/rooms", {
                     headers: {
                         Authorization: `Bearer ${token}`,
                     },

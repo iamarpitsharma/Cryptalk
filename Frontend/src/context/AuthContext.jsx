@@ -13,7 +13,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await axios.get("/users/me");
+        const res = await axios.get("/api/users/me");
         setAuthUser(res.data);
       } catch {
         setAuthUser(null);
@@ -44,14 +44,14 @@ export const AuthProvider = ({ children }) => {
 
   // Login function
   const login = async (email, password) => {
-    const res = await axios.post("/auth/login", { email, password });
+    const res = await axios.post("/api/auth/login", { email, password });
     localStorage.setItem("token", res.data.token);
     setAuthUser(res.data.user);
   };
 
   // Logout function
   const logout = async () => {
-    await axios.post("/auth/logout");
+    await axios.post("/api/auth/logout");
     localStorage.removeItem("token");
     setAuthUser(null);
     if (socket) socket.disconnect();

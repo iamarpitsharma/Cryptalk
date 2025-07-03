@@ -46,7 +46,7 @@ const handleSubmit = async (e) => {
   setIsLoading(true);
 
   try {
-    const res = await axios.post("/auth/login", {
+    const res = await axios.post("/api/auth/login", {
       email: formData.email,
       password: formData.password,
     });

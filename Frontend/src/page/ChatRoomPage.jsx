@@ -111,7 +111,7 @@ export default function ChatRoomPage() {
     // --- Ensure user is a member of the room before connecting socket ---
     const joinRoom = async () => {
       try {
-        await axios.post(`/rooms/${roomId}/join`, {}, {
+        await axios.post(`/api/rooms/${roomId}/join`, {}, {
           headers: { Authorization: `Bearer ${token}` },
         });
       } catch (err) {
@@ -130,7 +130,7 @@ export default function ChatRoomPage() {
     joinRoom().then(() => {
       // Fetch room details to get the real room name from backend
       axios
-        .get(`/rooms/${roomId}`,
+        .get(`/api/rooms/${roomId}`,
           { headers: { Authorization: `Bearer ${token}` } })
         .then((res) => setRoomName(res.data.name))
         .catch((err) => {
@@ -163,7 +163,7 @@ export default function ChatRoomPage() {
       // Fetch initial messages via REST API after joining room
       socketRef.current.on("joined_room", async () => {
         try {
-          const res = await axios.get(`/rooms/${roomId}/messages`, {
+          const res = await axios.get(`/api/rooms/${roomId}/messages`, {
             headers: { Authorization: `Bearer ${token}` },
           });
           console.log("Fetched messages from backend:", res.data.messages);
@@ -217,7 +217,7 @@ export default function ChatRoomPage() {
       const token = localStorage.getItem("cryptalk_token");
       if (!token) return;
       try {
-        const res = await axios.get(`/rooms/${roomId}/messages`, {
+        const res = await axios.get(`/api/rooms/${roomId}/messages`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         console.log("Fetched messages from backend (mount):", res.data.messages);
@@ -259,7 +259,7 @@ export default function ChatRoomPage() {
 
   const handleDeleteMessage = async (messageId) => {
     const token = localStorage.getItem("cryptalk_token");
-    await axios.delete(`/messages/${messageId}`, {
+    await axios.delete(`/api/messages/${messageId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     // No need to update state here, socket event will handle it
