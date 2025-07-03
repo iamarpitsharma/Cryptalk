@@ -144,8 +144,8 @@ export default function ChatRoomPage() {
       });
 
       socketRef.current.on("connect", () => {
-        console.log("Socket connected, emitting join_room", roomId);
-        socketRef.current.emit("join_room", roomId);
+        console.log("Socket connected, emitting request_join_room", roomId);
+        socketRef.current.emit("request_join_room", roomId);
       });
 
       socketRef.current.on("connect_error", (err) => {
@@ -160,17 +160,27 @@ export default function ChatRoomPage() {
       socketRef.current.off("new_message");
       socketRef.current.off("message_destroyed");
 
-      // Fetch initial messages via REST API after joining room
-      socketRef.current.on("joined_room", async () => {
-        try {
-          const res = await axios.get(`/api/rooms/${roomId}/messages`, {
+      // Listen for join_result (for the requester)
+      socketRef.current.on("join_result", ({ accepted, message }) => {
+        alert(message); // Show "Permission accepted/denied"
+        if (accepted) {
+          // Proceed to fetch messages, etc.
+          axios.get(`/api/rooms/${roomId}/messages`, {
             headers: { Authorization: `Bearer ${token}` },
-          });
-          console.log("Fetched messages from backend:", res.data.messages);
+          }).then((res) => setMessages(res.data.messages))
+            .catch((error) => console.error("Failed to fetch messages:", error));
+        } else {
+          // Optionally redirect or block UI
+          navigate("/dashboard");
+        }
+      });
 
-          setMessages(res.data.messages);
-        } catch (error) {
-          console.error("Failed to fetch messages:", error);
+      // Listen for join_request (for current members)
+      socketRef.current.on("join_request", ({ roomId: reqRoomId, requesterId, requesterName }) => {
+        if (window.confirm(`${requesterName} wants to join. Accept?`)) {
+          socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: true });
+        } else {
+          socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: false });
         }
       });
 

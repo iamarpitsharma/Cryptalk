@@ -3,6 +3,9 @@ const User = require("../models/User")
 const Room = require("../models/Room")
 const Message = require("../models/Message")
 
+// In-memory store for pending join requests (for demo; use DB for production)
+const pendingJoinRequests = {};
+
 const socketHandler = (io) => {
   // Authentication middleware for socket connections
   io.use(async (socket, next) => {
@@ -217,6 +220,51 @@ const socketHandler = (io) => {
         })
       })
     })
+
+    // --- JOIN BY PERMISSION FEATURE ---
+    socket.on("request_join_room", async (roomId) => {
+      const room = await Room.findById(roomId);
+      if (!room) {
+        socket.emit("join_result", { accepted: false, message: "Room not found" });
+        return;
+      }
+      // Notify all current members except the requester
+      io.to(roomId).emit("join_request", {
+        roomId,
+        requesterId: socket.userId,
+        requesterName: socket.user.name,
+      });
+      // Store pending request
+      pendingJoinRequests[roomId] = pendingJoinRequests[roomId] || {};
+      pendingJoinRequests[roomId][socket.userId] = socket.id;
+    });
+
+    socket.on("join_response", async ({ roomId, requesterId, accepted }) => {
+      if (!pendingJoinRequests[roomId] || !pendingJoinRequests[roomId][requesterId]) return;
+      const requesterSocketId = pendingJoinRequests[roomId][requesterId];
+      const requesterSocket = io.sockets.sockets.get(requesterSocketId);
+
+      if (accepted) {
+        // Add user to room in DB
+        const room = await Room.findById(roomId);
+        if (room && !room.members.some(m => m.user.toString() === requesterId)) {
+          room.members.push({ user: requesterId, role: "member" });
+          await room.save();
+        }
+        // Let the user join the socket room
+        if (requesterSocket) {
+          requesterSocket.join(roomId);
+          requesterSocket.emit("join_result", { accepted: true, message: "Permission accepted" });
+          io.to(roomId).emit("user_joined", { userId: requesterId, userName: requesterSocket.user.name, roomId });
+        }
+      } else {
+        if (requesterSocket) {
+          requesterSocket.emit("join_result", { accepted: false, message: "Permission denied" });
+        }
+      }
+      // Remove pending request
+      delete pendingJoinRequests[roomId][requesterId];
+    });
   })
 }
 
