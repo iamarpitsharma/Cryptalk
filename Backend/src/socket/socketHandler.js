@@ -271,11 +271,33 @@ const socketHandler = (io) => {
 
         // Check if user is already a member
         const isMember = room.members.some((member) => member.user.toString() === socket.userId);
-        if (isMember) {
-          // User is already a member, allow immediate join
+        const isCreator = room.creator.toString() === socket.userId;
+        
+        console.log(`[Socket.IO] Membership check for user ${socket.user.name}:`, {
+          userId: socket.userId,
+          roomId: roomId,
+          isMember: isMember,
+          isCreator: isCreator,
+          roomMembers: room.members.map(m => ({ user: m.user.toString(), role: m.role })),
+          roomCreator: room.creator.toString()
+        });
+        
+        if (isMember || isCreator) {
+          // User is already a member or creator, allow immediate join
           socket.join(roomId);
           socket.emit("join_result", { accepted: true, message: "Welcome back!" });
-          console.log(`[Socket.IO] User ${socket.user.name} joined room ${roomId} (existing member)`);
+          console.log(`[Socket.IO] User ${socket.user.name} joined room ${roomId} (existing member/creator)`);
+          return;
+        }
+        
+        // If user is the creator but not in members list, add them automatically
+        if (isCreator && !isMember) {
+          console.log(`[Socket.IO] Creator ${socket.user.name} not in members list, adding automatically`);
+          room.members.push({ user: socket.userId, role: "admin" });
+          await room.save();
+          socket.join(roomId);
+          socket.emit("join_result", { accepted: true, message: "Welcome to your room!" });
+          console.log(`[Socket.IO] User ${socket.user.name} added to room ${roomId} as creator`);
           return;
         }
 
