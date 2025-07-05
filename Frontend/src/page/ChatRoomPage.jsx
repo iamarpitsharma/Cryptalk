@@ -17,7 +17,7 @@ import axios from "../api/axios";
 import { Button } from "../component/Button";
 import { Input } from "../component/Input";
 import { encryptMessage, decryptMessage } from "../lib/encryption";
-const SOCKET_SERVER_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const SOCKET_SERVER_URL = import.meta.env.VITE_API_URL || "https://cryptalk-backend.onrender.com";
 // const SOCKET_SERVER_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
 
 function SelfDestructMessage({ message, onDestruct }) {

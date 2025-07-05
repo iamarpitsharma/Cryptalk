@@ -17,8 +17,11 @@ const app = express()
 const server = http.createServer(app)
 const io = socketIo(server, {
   cors: {
-    origin: process.env.FRONTEND_URL,
-      // || "http://localhost:5173",
+    origin: [
+      process.env.FRONTEND_URL,
+      "https://cryptalk-beryl.vercel.app",
+      "http://localhost:5173"
+    ].filter(Boolean),
     methods: ["GET", "POST"],
   },
 })
@@ -30,8 +33,11 @@ app.set("trust proxy", 1);  // Fix for express-rate-limit + proxies
 app.use(helmet())
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
-    //  || "http://localhost:5173",
+    origin: [
+      process.env.FRONTEND_URL,
+      "https://cryptalk-beryl.vercel.app",
+      "http://localhost:5173"
+    ].filter(Boolean),
     credentials: true,
   }),
 )
