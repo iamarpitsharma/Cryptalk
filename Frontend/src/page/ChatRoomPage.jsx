@@ -162,10 +162,16 @@ export default function ChatRoomPage() {
         }).then((res) => setMessages(res.data.messages))
           .catch((error) => console.error("Failed to fetch messages:", error));
       } else {
-        setJoinStatus("denied");
-        // Show error message and redirect
-        alert(message);
-        navigate("/dashboard");
+        // Don't immediately redirect if it's just a pending message
+        if (message.includes("Join request sent to room admin")) {
+          setJoinStatus("waiting");
+          // Don't show alert, just keep waiting
+        } else {
+          setJoinStatus("denied");
+          // Show error message and redirect
+          alert(message);
+          navigate("/dashboard");
+        }
       }
     });
 
