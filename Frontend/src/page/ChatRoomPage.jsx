@@ -112,7 +112,7 @@ export default function ChatRoomPage() {
 
     // Fetch room details to get the real room name and members from backend
     axios
-      .get(`/api/rooms/${roomId}`,
+      .get(`/rooms/${roomId}`,
         { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => {
         setRoomName(res.data.name);
@@ -151,7 +151,7 @@ export default function ChatRoomPage() {
       alert(message); // Show "Permission accepted/denied"
       if (accepted) {
         // Proceed to fetch messages, etc.
-        axios.get(`/api/rooms/${roomId}/messages`, {
+        axios.get(`/rooms/${roomId}/messages`, {
           headers: { Authorization: `Bearer ${token}` },
         }).then((res) => setMessages(res.data.messages))
           .catch((error) => console.error("Failed to fetch messages:", error));
@@ -202,7 +202,7 @@ export default function ChatRoomPage() {
       const token = localStorage.getItem("cryptalk_token");
       if (!token) return;
       try {
-        const res = await axios.get(`/api/rooms/${roomId}/messages`, {
+        const res = await axios.get(`/rooms/${roomId}/messages`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         console.log("Fetched messages from backend (mount):", res.data.messages);
@@ -244,7 +244,7 @@ export default function ChatRoomPage() {
 
   const handleDeleteMessage = async (messageId) => {
     const token = localStorage.getItem("cryptalk_token");
-    await axios.delete(`/api/messages/${messageId}`, {
+    await axios.delete(`/messages/${messageId}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     // No need to update state here, socket event will handle it
