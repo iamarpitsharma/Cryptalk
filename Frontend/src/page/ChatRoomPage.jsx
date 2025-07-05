@@ -162,16 +162,10 @@ export default function ChatRoomPage() {
         }).then((res) => setMessages(res.data.messages))
           .catch((error) => console.error("Failed to fetch messages:", error));
       } else {
-        // Don't immediately redirect if it's just a pending message
-        if (message.includes("Join request sent to room admin")) {
-          setJoinStatus("waiting");
-          // Don't show alert, just keep waiting
-        } else {
-          setJoinStatus("denied");
-          // Show error message and redirect
-          alert(message);
-          navigate("/dashboard");
-        }
+        setJoinStatus("denied");
+        // Show error message and redirect
+        alert(message);
+        navigate("/dashboard");
       }
     });
 
@@ -264,38 +258,7 @@ export default function ChatRoomPage() {
     // No need to update state here, socket event will handle it
   };
 
-  // Add this after the main useEffect (after socketRef.current is set up)
-  useEffect(() => {
-    if (!socketRef.current) return;
-    const handler = ({ roomId: reqRoomId, requesterId, requesterName }) => {
-      console.log("Join request received:", { roomId: reqRoomId, requesterId, requesterName });
-      
-      // Check if user is creator or admin
-      const isCreator = user && roomCreator && user._id === roomCreator;
-      const isAdmin = roomMembers.some(member => 
-        member.user === user._id && (member.role === 'admin' || member.role === 'moderator')
-      );
-      
-      if ((isCreator || isAdmin) && requesterId !== user._id) {
-        const shouldAccept = window.confirm(`${requesterName} wants to join this room. Accept?`);
-        console.log(`${isCreator ? 'Creator' : 'Admin'} ${user.name} ${shouldAccept ? 'accepted' : 'denied'} request from ${requesterName}`);
-        
-        socketRef.current.emit("join_response", { 
-          roomId: reqRoomId, 
-          requesterId, 
-          accepted: shouldAccept 
-        });
-      } else if (requesterId === user._id) {
-        console.log("Ignoring own join request");
-      } else {
-        console.log("User is not the room creator or admin, cannot approve requests");
-      }
-    };
-    socketRef.current.on("join_request", handler);
-    return () => {
-      socketRef.current.off("join_request", handler);
-    };
-  }, [user, roomCreator]);
+  // REMOVED: Join request approval handler - no approval needed anymore
 
   if (!user) return null;
   if (loading)

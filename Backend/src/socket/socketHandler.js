@@ -51,30 +51,7 @@ const socketHandler = (io) => {
       })
     })
 
-    // Check for pending join requests for rooms this user can approve
-    const roomsUserCanApprove = await Room.find({
-      $or: [
-        { creator: socket.userId },
-        { "members.user": socket.userId, "members.role": { $in: ["admin", "moderator"] } }
-      ]
-    });
-
-    for (const room of roomsUserCanApprove) {
-      const pendingRequests = await PendingRequest.find({
-        roomId: room._id,
-        status: "pending"
-      });
-
-      for (const request of pendingRequests) {
-        socket.emit("join_request", {
-          roomId: room._id,
-          requesterId: request.requesterId,
-          requesterName: request.requesterName,
-          requestId: request._id,
-        });
-        console.log(`[Socket.IO] Pending request sent to ${socket.user.name} for room ${room.name}`);
-      }
-    }
+    // REMOVED: Pending request notification logic - no approval needed anymore
 
     // Handle joining a room (legacy - kept for compatibility)
     socket.on("join_room", async (roomId) => {
@@ -259,10 +236,10 @@ const socketHandler = (io) => {
       })
     })
 
-    // --- JOIN BY PERMISSION FEATURE ---
+    // --- SIMPLIFIED JOIN ROOM (NO APPROVAL NEEDED) ---
     socket.on("request_join_room", async (roomId) => {
       try {
-        console.log(`[Socket.IO] User ${socket.user.name} (${socket.userId}) requesting to join room: ${roomId}`);
+        console.log(`[Socket.IO] User ${socket.user.name} (${socket.userId}) joining room: ${roomId}`);
         const room = await Room.findById(roomId);
         if (!room) {
           socket.emit("join_result", { accepted: false, message: "Room not found" });
@@ -301,123 +278,19 @@ const socketHandler = (io) => {
           return;
         }
 
-        // Check if there's already a pending request in database
-        const existingRequest = await PendingRequest.findOne({
-          roomId,
-          requesterId: socket.userId,
-          status: "pending"
-        });
-
-        if (existingRequest) {
-          socket.emit("join_result", { accepted: false, message: "Request already pending" });
-          return;
-        }
-
-        // Create pending request in database
-        const pendingRequest = new PendingRequest({
-          roomId,
-          requesterId: socket.userId,
-          requesterName: socket.user.name,
-        });
-        await pendingRequest.save();
-        console.log(`[Socket.IO] Pending request saved to database for user ${socket.user.name} in room ${roomId}`);
-
-        // Try to notify room creator if they're online
-        const creatorSocketId = userSocketMap.get(room.creator.toString());
-        if (creatorSocketId) {
-          const creatorSocket = io.sockets.sockets.get(creatorSocketId);
-          if (creatorSocket) {
-            creatorSocket.emit("join_request", {
-              roomId,
-              requesterId: socket.userId,
-              requesterName: socket.user.name,
-              requestId: pendingRequest._id,
-            });
-            console.log(`[Socket.IO] Join request sent to room creator ${room.creator} (${creatorSocket.user.name})`);
-          }
-        } else {
-          console.log(`[Socket.IO] Room creator ${room.creator} is not online, request will be shown when they come online`);
-        }
-
-        // Send immediate response to requester
-        socket.emit("join_result", { 
-          accepted: false, 
-          message: "Join request sent to room admin. You will be notified when they respond." 
-        });
+        // NEW USER: Automatically add them to the room (no approval needed)
+        console.log(`[Socket.IO] New user ${socket.user.name} automatically added to room ${roomId}`);
+        room.members.push({ user: socket.userId, role: "member" });
+        await room.save();
+        
+        socket.join(roomId);
+        socket.emit("join_result", { accepted: true, message: "Welcome to the room!" });
+        io.to(roomId).emit("user_joined", { userId: socket.userId, userName: socket.user.name, roomId });
+        console.log(`[Socket.IO] User ${socket.user.name} joined room ${roomId} (new member)`);
 
       } catch (error) {
-        console.error("Request join room error:", error);
-        socket.emit("join_result", { accepted: false, message: "Failed to request join" });
-      }
-    });
-
-    socket.on("join_response", async ({ roomId, requesterId, accepted, requestId }) => {
-      try {
-        console.log(`[Socket.IO] Join response from ${socket.user.name} for user ${requesterId}: ${accepted ? 'accepted' : 'denied'}`);
-        
-        const room = await Room.findById(roomId);
-        if (!room) {
-          socket.emit("error", { message: "Room not found" });
-          return;
-        }
-
-        // Allow the creator or any admin/moderator to approve/deny
-        const isCreator = room.creator.toString() === socket.userId;
-        const isAdmin = room.members.some(m => 
-          m.user.toString() === socket.userId && (m.role === 'admin' || m.role === 'moderator')
-        );
-        
-        if (!isCreator && !isAdmin) {
-          socket.emit("error", { message: "Only room creator or admins can approve requests" });
-          return;
-        }
-
-        // Find the pending request in database
-        const pendingRequest = await PendingRequest.findOne({
-          roomId,
-          requesterId,
-          status: "pending"
-        });
-
-        if (!pendingRequest) {
-          socket.emit("error", { message: "No pending request found" });
-          return;
-        }
-
-        // Update request status
-        pendingRequest.status = accepted ? "approved" : "denied";
-        await pendingRequest.save();
-
-        // Find requester's socket
-        const requesterSocketId = userSocketMap.get(requesterId);
-        const requesterSocket = requesterSocketId ? io.sockets.sockets.get(requesterSocketId) : null;
-
-        if (accepted) {
-          // Add user to room in DB
-          if (!room.members.some(m => m.user.toString() === requesterId)) {
-            room.members.push({ user: requesterId, role: "member" });
-            await room.save();
-            console.log(`[Socket.IO] User ${requesterId} added to room ${roomId} in database`);
-          }
-          
-          // Let the user join the socket room
-          if (requesterSocket) {
-            requesterSocket.join(roomId);
-            requesterSocket.emit("join_result", { accepted: true, message: "Permission accepted! Welcome to the room." });
-            io.to(roomId).emit("user_joined", { userId: requesterId, userName: requesterSocket.user.name, roomId });
-            console.log(`[Socket.IO] User ${requesterSocket.user.name} joined room ${roomId} after approval`);
-          }
-        } else {
-          if (requesterSocket) {
-            requesterSocket.emit("join_result", { accepted: false, message: "Permission denied by room admin" });
-            console.log(`[Socket.IO] User ${requesterSocket.user.name} denied access to room ${roomId}`);
-          }
-        }
-        
-        console.log(`[Socket.IO] Pending request ${pendingRequest._id} marked as ${pendingRequest.status}`);
-      } catch (error) {
-        console.error("Join response error:", error);
-        socket.emit("error", { message: "Failed to process join response" });
+        console.error("Join room error:", error);
+        socket.emit("join_result", { accepted: false, message: "Failed to join room" });
       }
     });
   })
