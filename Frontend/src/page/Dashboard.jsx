@@ -30,7 +30,7 @@ export default function Dashboard() {
         const fetchRooms = async () => {
             try {
                 setLoading(true);
-                const res = await axios.get("/api/rooms", {
+                const res = await axios.get("/rooms", {
                     headers: {
                         Authorization: `Bearer ${token}`,
                     },
@@ -102,7 +102,7 @@ export default function Dashboard() {
 
         try {
             const res = await axios.post(
-                "/api/rooms",   // changed from '/rooms' to '/api/rooms'
+                "/rooms",   // changed from '/rooms' to '/api/rooms'
                 { name: newRoomName },
                 {
                     headers: {

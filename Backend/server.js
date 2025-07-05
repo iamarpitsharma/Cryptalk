@@ -60,13 +60,13 @@ mongoose
   .catch((err) => console.error("❌ MongoDB connection error:", err))
 
 // Routes
-app.use("/api/auth", authRoutes)
-app.use("/api/rooms", roomRoutes)
-app.use("/api/messages", messageRoutes)
-app.use("/api/users", userRoutes)
+app.use("/auth", authRoutes)
+app.use("/rooms", roomRoutes)
+app.use("/messages", messageRoutes)
+app.use("/users", userRoutes)
 app.set("io", io);
 // Health check
-app.get("/api/health", (req, res) => {
+app.get("/health", (req, res) => {
   res.json({
     status: "OK",
     timestamp: new Date().toISOString(),
