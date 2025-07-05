@@ -27,7 +27,10 @@ import axios from "axios";
 
 const axiosInstance = axios.create({
   baseURL: (import.meta.env.VITE_API_URL || "https://cryptalk-backend.onrender.com") + "/api",
-  withCredentials: true,
+  withCredentials: false, // Changed to false to avoid CORS issues
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
 // Optional: add interceptor to attach token automatically

@@ -30,7 +30,11 @@ const io = socketIo(server, {
 app.set("trust proxy", 1);  // Fix for express-rate-limit + proxies
 
 // Security middleware
-app.use(helmet())
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}))
+
+// CORS configuration
 app.use(
   cors({
     origin: [
@@ -38,9 +42,14 @@ app.use(
       "https://cryptalk-beryl.vercel.app",
       "http://localhost:5173"
     ].filter(Boolean),
-    credentials: true,
+    credentials: false, // Changed to false to avoid CORS issues
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
   }),
 )
+
+// Handle CORS preflight requests
+app.options('*', cors())
 
 // Rate limiting
 const limiter = rateLimit({
@@ -95,6 +104,11 @@ const PORT = process.env.PORT || 5000
 server.listen(PORT, () => {
   console.log(`🚀 Cryptalk Backend running on port ${PORT}`)
   console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL}`)
+  console.log(`🔧 CORS Origins:`, [
+    process.env.FRONTEND_URL,
+    "https://cryptalk-beryl.vercel.app",
+    "http://localhost:5173"
+  ].filter(Boolean))
 })
 
 module.exports = { app, server, io }
