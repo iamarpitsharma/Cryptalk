@@ -97,6 +97,7 @@ export default function ChatRoomPage() {
   const socketRef = useRef(null);
   const [roomMembers, setRoomMembers] = useState([]);
   const [roomCreator, setRoomCreator] = useState(null);
+  const [joinStatus, setJoinStatus] = useState("connecting"); // "connecting", "waiting", "accepted", "denied"
 
   useEffect(() => {
     const token = localStorage.getItem("cryptalk_token");
@@ -131,6 +132,7 @@ export default function ChatRoomPage() {
 
     socketRef.current.on("connect", () => {
       console.log("Socket connected, emitting request_join_room", roomId);
+      setJoinStatus("waiting");
       socketRef.current.emit("request_join_room", roomId);
     });
 
@@ -151,6 +153,7 @@ export default function ChatRoomPage() {
       console.log("Join result received:", { accepted, message });
       
       if (accepted) {
+        setJoinStatus("accepted");
         // Show success message
         alert(message);
         // Proceed to fetch messages, etc.
@@ -159,6 +162,7 @@ export default function ChatRoomPage() {
         }).then((res) => setMessages(res.data.messages))
           .catch((error) => console.error("Failed to fetch messages:", error));
       } else {
+        setJoinStatus("denied");
         // Show error message and redirect
         alert(message);
         navigate("/dashboard");
@@ -290,6 +294,19 @@ export default function ChatRoomPage() {
         <span className="animate-pulse text-lg">Connecting to room...</span>
       </div>
     );
+
+  // Show waiting screen while join request is pending
+  if (joinStatus === "waiting") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black text-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mx-auto mb-4"></div>
+          <span className="text-lg">Waiting for room admin approval...</span>
+          <p className="text-sm text-gray-400 mt-2">Please wait while the room admin reviews your request</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 text-white flex flex-col">

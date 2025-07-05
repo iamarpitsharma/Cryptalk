@@ -255,16 +255,42 @@ const socketHandler = (io) => {
           return;
         }
 
-        // Notify all current members except the requester
-        io.to(roomId).emit("join_request", {
-          roomId,
-          requesterId: socket.userId,
-          requesterName: socket.user.name,
-        });
+        // Find the room creator's socket and send them the join request
+        const creatorSocket = Array.from(io.sockets.sockets.values()).find(
+          s => s.userId === room.creator.toString()
+        );
+        
+        if (creatorSocket) {
+          creatorSocket.emit("join_request", {
+            roomId,
+            requesterId: socket.userId,
+            requesterName: socket.user.name,
+          });
+          console.log(`[Socket.IO] Join request sent to room creator ${room.creator}`);
+        } else {
+          // If creator is not online, deny the request
+          socket.emit("join_result", { accepted: false, message: "Room admin is not available. Please try again later." });
+          return;
+        }
         
         // Store pending request
         pendingJoinRequests[roomId] = pendingJoinRequests[roomId] || {};
         pendingJoinRequests[roomId][socket.userId] = socket.id;
+        
+        // Set a timeout for the request (30 seconds)
+        setTimeout(() => {
+          if (pendingJoinRequests[roomId] && pendingJoinRequests[roomId][socket.userId]) {
+            const requesterSocket = io.sockets.sockets.get(socket.id);
+            if (requesterSocket) {
+              requesterSocket.emit("join_result", { 
+                accepted: false, 
+                message: "Request timed out. Room admin did not respond." 
+              });
+            }
+            delete pendingJoinRequests[roomId][socket.userId];
+            console.log(`[Socket.IO] Join request timed out for user ${socket.user.name} in room ${roomId}`);
+          }
+        }, 30000); // 30 seconds timeout
         
         console.log(`[Socket.IO] Join request sent for user ${socket.user.name} to room ${roomId}`);
       } catch (error) {
