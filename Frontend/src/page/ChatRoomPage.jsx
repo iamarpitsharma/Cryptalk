@@ -264,11 +264,15 @@ export default function ChatRoomPage() {
     const handler = ({ roomId: reqRoomId, requesterId, requesterName }) => {
       console.log("Join request received:", { roomId: reqRoomId, requesterId, requesterName });
       
-      // Only the creator can approve join requests
+      // Check if user is creator or admin
       const isCreator = user && roomCreator && user._id === roomCreator;
-      if (isCreator && requesterId !== user._id) {
+      const isAdmin = roomMembers.some(member => 
+        member.user === user._id && (member.role === 'admin' || member.role === 'moderator')
+      );
+      
+      if ((isCreator || isAdmin) && requesterId !== user._id) {
         const shouldAccept = window.confirm(`${requesterName} wants to join this room. Accept?`);
-        console.log(`Admin ${user.name} ${shouldAccept ? 'accepted' : 'denied'} request from ${requesterName}`);
+        console.log(`${isCreator ? 'Creator' : 'Admin'} ${user.name} ${shouldAccept ? 'accepted' : 'denied'} request from ${requesterName}`);
         
         socketRef.current.emit("join_response", { 
           roomId: reqRoomId, 
@@ -278,7 +282,7 @@ export default function ChatRoomPage() {
       } else if (requesterId === user._id) {
         console.log("Ignoring own join request");
       } else {
-        console.log("User is not the room creator, cannot approve requests");
+        console.log("User is not the room creator or admin, cannot approve requests");
       }
     };
     socketRef.current.on("join_request", handler);

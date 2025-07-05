@@ -256,9 +256,11 @@ const socketHandler = (io) => {
         }
 
         // Find the room creator's socket and send them the join request
-        const creatorSocket = Array.from(io.sockets.sockets.values()).find(
-          s => s.userId === room.creator.toString()
-        );
+        const allSockets = Array.from(io.sockets.sockets.values());
+        console.log(`[Socket.IO] Total connected sockets: ${allSockets.length}`);
+        console.log(`[Socket.IO] Looking for room creator: ${room.creator}`);
+        
+        const creatorSocket = allSockets.find(s => s.userId === room.creator.toString());
         
         if (creatorSocket) {
           creatorSocket.emit("join_request", {
@@ -266,11 +268,31 @@ const socketHandler = (io) => {
             requesterId: socket.userId,
             requesterName: socket.user.name,
           });
-          console.log(`[Socket.IO] Join request sent to room creator ${room.creator}`);
+          console.log(`[Socket.IO] Join request sent to room creator ${room.creator} (${creatorSocket.user.name})`);
         } else {
-          // If creator is not online, deny the request
-          socket.emit("join_result", { accepted: false, message: "Room admin is not available. Please try again later." });
-          return;
+          // Log all connected users for debugging
+          console.log(`[Socket.IO] Connected users:`, allSockets.map(s => ({ id: s.userId, name: s.user.name })));
+          console.log(`[Socket.IO] Room creator ${room.creator} is not connected`);
+          
+          // Try to find any admin/moderator in the room who can approve
+          const roomAdmins = allSockets.filter(s => 
+            room.members.some(m => m.user.toString() === s.userId && (m.role === 'admin' || m.role === 'moderator'))
+          );
+          
+          if (roomAdmins.length > 0) {
+            // Send to the first available admin
+            const adminSocket = roomAdmins[0];
+            adminSocket.emit("join_request", {
+              roomId,
+              requesterId: socket.userId,
+              requesterName: socket.user.name,
+            });
+            console.log(`[Socket.IO] Join request sent to room admin ${adminSocket.user.name} (fallback)`);
+          } else {
+            // If no admin is online, deny the request
+            socket.emit("join_result", { accepted: false, message: "Room admin is not available. Please try again later." });
+            return;
+          }
         }
         
         // Store pending request
@@ -309,9 +331,14 @@ const socketHandler = (io) => {
           return;
         }
 
-        // Only allow the creator to approve/deny
-        if (room.creator.toString() !== socket.userId) {
-          socket.emit("error", { message: "Only room creator can approve requests" });
+        // Allow the creator or any admin/moderator to approve/deny
+        const isCreator = room.creator.toString() === socket.userId;
+        const isAdmin = room.members.some(m => 
+          m.user.toString() === socket.userId && (m.role === 'admin' || m.role === 'moderator')
+        );
+        
+        if (!isCreator && !isAdmin) {
+          socket.emit("error", { message: "Only room creator or admins can approve requests" });
           return;
         }
 
