@@ -148,15 +148,19 @@ export default function ChatRoomPage() {
 
     // Listen for join_result (for the requester)
     socketRef.current.on("join_result", ({ accepted, message }) => {
-      alert(message); // Show "Permission accepted/denied"
+      console.log("Join result received:", { accepted, message });
+      
       if (accepted) {
+        // Show success message
+        alert(message);
         // Proceed to fetch messages, etc.
         axios.get(`/rooms/${roomId}/messages`, {
           headers: { Authorization: `Bearer ${token}` },
         }).then((res) => setMessages(res.data.messages))
           .catch((error) => console.error("Failed to fetch messages:", error));
       } else {
-        // Optionally redirect or block UI
+        // Show error message and redirect
+        alert(message);
         navigate("/dashboard");
       }
     });
@@ -254,21 +258,30 @@ export default function ChatRoomPage() {
   useEffect(() => {
     if (!socketRef.current) return;
     const handler = ({ roomId: reqRoomId, requesterId, requesterName }) => {
+      console.log("Join request received:", { roomId: reqRoomId, requesterId, requesterName });
+      
       // Only the creator can approve join requests
       const isCreator = user && roomCreator && user._id === roomCreator;
       if (isCreator && requesterId !== user._id) {
-        if (window.confirm(`${requesterName} wants to join. Accept?`)) {
-          socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: true });
-        } else {
-          socketRef.current.emit("join_response", { roomId: reqRoomId, requesterId, accepted: false });
-        }
+        const shouldAccept = window.confirm(`${requesterName} wants to join this room. Accept?`);
+        console.log(`Admin ${user.name} ${shouldAccept ? 'accepted' : 'denied'} request from ${requesterName}`);
+        
+        socketRef.current.emit("join_response", { 
+          roomId: reqRoomId, 
+          requesterId, 
+          accepted: shouldAccept 
+        });
+      } else if (requesterId === user._id) {
+        console.log("Ignoring own join request");
+      } else {
+        console.log("User is not the room creator, cannot approve requests");
       }
     };
     socketRef.current.on("join_request", handler);
     return () => {
       socketRef.current.off("join_request", handler);
     };
-  }, [roomMembers, user, roomCreator]);
+  }, [user, roomCreator]);
 
   if (!user) return null;
   if (loading)
